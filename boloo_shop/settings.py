@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import urllib
+
+# Register database schemes in URLs.
+urllib.parse.uses_netloc.append('mysql')
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +90,17 @@ DATABASES = {
         "PORT": "3306",
     }
 }
+
+if 'CLEARDB_DATABASE_URL' in os.environ:
+    url = urllib.parse.urlparse(os.environ['CLEARDB_DATABASE_URL'])
+    # Update with environment configuration.
+    DATABASES['default'].update({
+        'NAME': url.path[1:],
+        'USER': url.username,
+        'PASSWORD': url.password,
+        'HOST': url.hostname,
+        'PORT': url.port,
+    })
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
