@@ -13,6 +13,6 @@
 
 
 ### High Level data fetching design
-- In this app there are 3 main tasks which will run for every minute.
+- In this app there are 2 main tasks which will run for every minute.
 - `RefreshTokens` will refreshes the token & stores new expiry date for all records whose expiry date less or equal to now.
 - `SyncEndPoints` will sync all shipments from bol.
