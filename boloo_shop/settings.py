@@ -95,7 +95,7 @@ DATABASES = {
 }
 
 if "JAWSDB_URL" in os.environ:
-    url = urllib.parse.urlparse(os.environ["CLEARDB_DATABASE_URL"])
+    url = urllib.parse.urlparse(os.environ["JAWSDB_URL"])
     # Update with environment configuration.
     DATABASES["default"].update(
         {
