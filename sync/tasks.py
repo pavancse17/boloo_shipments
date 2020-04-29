@@ -49,6 +49,7 @@ class SyncShipmentListEndPoint(celery_app.Task):
                         args=[end_point_tracker_id, self.page, method],
                         eta=now() + timedelta(seconds=int(response.headers["retry-after"])),
                     )
+                    return
 
                 response.raise_for_status()
             self.page = 1
