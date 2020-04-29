@@ -52,7 +52,3 @@ class SellerViewSet(viewsets.ModelViewSet):
 
         serializer = ShipmentSerializer(queryset, many=True)
         return Response(serializer.data)
-
-
-class ShipmentCreateView(CreateAPIView):
-    serializer_class = ShipmentSerializer
