@@ -1,17 +1,13 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-from .views import (
-    ListCreateView,
-    RetrieveUpdateDestroyView,
-    shipments_list_view,
-    start_shipments_sync,
-)
+from .views import SellerViewSet
+
+router = DefaultRouter()
+router.register(r"", SellerViewSet)
 
 urlpatterns = [
-    path("", ListCreateView.as_view(), name="sellar_list_create"),
-    path("<int:pk>/", RetrieveUpdateDestroyView.as_view(), name="sellar_update_destory"),
-    path("<int:pk>/sync", start_shipments_sync, name="start_shipment_sync"),
-    path("<int:pk>/shipments/", shipments_list_view, name="shipments_list"),
+    path("", include(router.urls)),
 ]
 
-app_name = "sellars"
+app_name = "sellers"

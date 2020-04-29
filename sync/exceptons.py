@@ -1,0 +1,2 @@
+class SyncCompletedError(Exception):
+    pass

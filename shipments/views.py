@@ -1,62 +1,58 @@
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
-from rest_framework import generics
-from rest_framework.decorators import api_view
+from rest_framework import viewsets
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
+from rest_framework.generics import CreateAPIView 
+from sync import constants
+from sync.models import SellerEndPointTracker
 
-from .models import SellerShop, ShipmentDetailSync, ShipmentSync
-from .serializers import SellerShopSerializer
-from .tasks import sync_sellar_shipments
-
-
-class ListCreateView(generics.ListCreateAPIView):
-    serializer_class = SellerShopSerializer
-    queryset = SellerShop.objects.all().order_by("id")
+from .models import Seller
+from .serializers import SellerSerializer, ShipmentSerializer
 
 
-class RetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = SellerShopSerializer
-    queryset = SellerShop.objects.all()
+class SellerViewSet(viewsets.ModelViewSet):
+    serializer_class = SellerSerializer
+    queryset = Seller.objects.all()
+
+    @action(detail=True, methods=["post"])
+    def sync(self, request, *args, **kwargs):
+        seller = self.get_object()
+
+        _, shipment_sync_created = SellerEndPointTracker.objects.get_or_create(
+            seller=seller,
+            end_point_name=constants.SHIPMENT_LIST_ENDPOINT_NAME,
+            defaults={"remaining_req_limit": 7, "limit_reset_at": now()},
+        )
+        SellerEndPointTracker.objects.get_or_create(
+            seller=seller,
+            end_point_name=constants.SHIPMENT_DETAIL_ENDPOINT_NAME,
+            defaults={"remaining_req_limit": 14, "limit_reset_at": now()},
+        )
+        schedule, _ = IntervalSchedule.objects.get_or_create(every=1, period=IntervalSchedule.MINUTES)
+        PeriodicTask.objects.get_or_create(
+            interval=schedule, name="Sync End Points", task="sync.tasks.SyncEndPoints"
+        )
+
+        if shipment_sync_created:
+            return Response({"message": "Shipments Sync Will Start within 1 minute."})
+
+        return Response({"message": "Shipments Sync already started. Please wait for 1 minute"})
+
+    @action(detail=True, methods=["get"])
+    def shipments(self, request, *args, **kwargs):
+        seller = self.get_object()
+        queryset = seller.shipments.all()
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ShipmentSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ShipmentSerializer(queryset, many=True)
+        return Response(serializer.data)
 
 
-@api_view(["get"])
-def start_shipments_sync(request, pk):
-    sellar_shop = get_object_or_404(SellerShop, id=pk)
-
-    sync1, sync1_created = ShipmentSync.objects.get_or_create(
-        sellar=sellar_shop, defaults={"remaining_req_limit": 7, "limit_reset_at": now()}
-    )
-    ShipmentDetailSync.objects.get_or_create(
-        sellar=sellar_shop, defaults={"remaining_req_limit": 14, "limit_reset_at": now()}
-    )
-
-    schedule, created = IntervalSchedule.objects.get_or_create(
-        every=1, period=IntervalSchedule.MINUTES
-    )
-    PeriodicTask.objects.get_or_create(
-        interval=schedule, name="Sync Shipments", task="shipments.tasks.sync_shipments"
-    )
-    PeriodicTask.objects.get_or_create(
-        interval=schedule,
-        name="Sync Detail Shipments",
-        task="shipments.tasks.sync_detail_shipments",
-    )
-
-    if sync1_created:
-        return Response({"message": "Shipments Sync Will Start within 1 minute."})
-
-    return Response({"message": "Shipments Sync already started. Please wait for 1 minute"})
-
-
-@api_view(["get"])
-def shipments_list_view(request, pk):
-    import json
-
-    sellar_shop = get_object_or_404(SellerShop, id=pk)
-    shipments_data = []
-
-    for data in sellar_shop.shipments.values_list("data", flat=True):
-        shipments_data.append(json.loads(data))
-
-    return Response(data=shipments_data)
+class ShipmentCreateView(CreateAPIView):
+    serializer_class = ShipmentSerializer

@@ -1,67 +1,83 @@
 from django.db import models
-from django.db.models import Q
 from django.utils.timezone import now
 
 
-class SellerShopManager(models.Manager):
-    def token_expiered_sellar_shops(self):
+class SellerManager(models.Manager):
+    def token_expired_sellers(self):
         return self.filter(token_expires_at__lte=now())
 
 
-class SellerShop(models.Model):
-    BOL_AUTH_URL = "https://login.bol.com/token?grant_type=client_credentials"
-
+class Seller(models.Model):
     name = models.CharField(max_length=255)
     client_id = models.CharField(unique=True, max_length=255)
     client_secret = models.CharField(max_length=255)
     access_token = models.TextField()
     token_expires_at = models.DateTimeField()
-    objects = SellerShopManager()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
 
-
-class SyncBaseManager(models.Manager):
-    def elegible_to_sync(self):
-        return self.filter(Q(limit_reset_at__lte=now()) | Q(remaining_req_limit__gt=0))
-
-
-class SyncBase(models.Model):
-    sellar = models.OneToOneField(SellerShop, on_delete=models.CASCADE)
-    remaining_req_limit = models.IntegerField()
-    limit_reset_at = models.DateTimeField()
-
-    objects = SyncBaseManager()
+    objects = SellerManager()
 
     class Meta:
-        abstract = True
+        ordering = ("-updated",)
 
 
-class ShipmentSync(SyncBase):
-    SHIPMENTS_URL = "https://api.bol.com/retailer/shipments/"
-    initial_scan_completed = models.BooleanField(default=False)
+class Transport(models.Model):
+    transport_id = models.IntegerField()
+    transporter_code = models.CharField(max_length=255)
+    track_and_trace = models.CharField(max_length=255)
+    shipping_label_id = models.IntegerField(null=True)
+    shipping_label_code = models.CharField(max_length=255, blank=True)
 
 
-class ShipmentDetailSync(SyncBase):
-    SHIPMENT_URL = "https://api.bol.com/retailer/shipments/{}"
+class UserData(models.Model):
+    pick_up_point_name = models.CharField(max_length=255, blank=True)
+    saluation_code = models.CharField(max_length=255, blank=True)
+    first_name = models.CharField(max_length=255, blank=True)
+    surname = models.CharField(max_length=255, blank=True)
+    street_name = models.CharField(max_length=255, blank=True)
+    house_number = models.CharField(max_length=255, blank=True)
+    house_number_extended = models.CharField(max_length=255, blank=True)
+    address_supplement = models.CharField(max_length=255, blank=True)
+    extra_address_information = models.CharField(max_length=255, blank=True)
+    zip_code = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255, blank=True)
+    country_code = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    company = models.CharField(max_length=255, blank=True)
+    vat_number = models.CharField(max_length=255, blank=True)
+    chamber_of_commerce_number = models.CharField(max_length=255, blank=True)
+    order_reference = models.CharField(max_length=255, blank=True)
+    delivery_phone_number = models.CharField(max_length=255, blank=True)
 
 
 class Shipment(models.Model):
-    # State choices
-    NOT_STARTED = 0
-    STARTED = 1
-    FINISHED = 2
+    seller = models.ForeignKey("shipments.seller", on_delete=models.CASCADE, related_name="shipments")
+    shipment_id = models.IntegerField()
+    pick_up_point = models.BooleanField()
+    shipment_date = models.DateTimeField()
+    shipment_reference = models.CharField(max_length=255, blank=True)
+    transport = models.ForeignKey("shipments.transport", related_name="transported_shipments", null=True, on_delete=models.SET_NULL)
+    customer = models.ForeignKey("shipments.userdata", null=True, on_delete=models.SET_NULL)
+    billing = models.ForeignKey("shipments.userdata", related_name="billed_shipments", null=True, on_delete=models.SET_NULL)
 
-    STATE_CHOICES = (
-        (NOT_STARTED, "Not Started"),
-        (STARTED, "Started"),
-        (FINISHED, "Finished"),
-    )
+    class Meta:
+        ordering = ("-shipment_date",)
 
-    # fulfilment_method choices
-    FBR = "FBR"
-    FBB = "FBB"
 
-    sellar = models.ForeignKey(SellerShop, on_delete=models.CASCADE, related_name="shipments")
-    shipment_id = models.CharField(max_length=255)
+class ShipmentItem(models.Model):
+    shipment = models.ForeignKey("shipments.shipment", related_name="items", on_delete=models.CASCADE)
+    order_item_id = models.CharField(max_length=255)
+    order_id = models.CharField(max_length=255)
+    order_date = models.DateTimeField()
+    latest_delivery_date = models.DateTimeField()
+    ean = models.CharField(max_length=255)
+    title = models.CharField(max_length=255)
+    quantity = models.IntegerField()
+    offer_price = models.DecimalField(decimal_places=2, max_digits=5)
+    offer_condition = models.CharField(max_length=255)
+    offer_reference = models.CharField(max_length=255, blank=True)
     fulfilment_method = models.CharField(max_length=3)
-    state = models.SmallIntegerField(choices=STATE_CHOICES, default=NOT_STARTED)
-    data = models.TextField(default='{"message": "Data not yet fetched."}')
+
+    class Meta:
+        ordering = ("-order_date", )

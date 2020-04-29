@@ -13,8 +13,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import urllib
 
+import django_heroku
+
 # Register database schemes in URLs.
-urllib.parse.uses_netloc.append('mysql')
+urllib.parse.uses_netloc.append("mysql")
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,6 +46,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_celery_beat",
     "shipments.apps.ShipmentsConfig",
+    "sync.apps.SyncConfig",
 ]
 
 MIDDLEWARE = [
@@ -91,16 +94,18 @@ DATABASES = {
     }
 }
 
-if 'CLEARDB_DATABASE_URL' in os.environ:
-    url = urllib.parse.urlparse(os.environ['CLEARDB_DATABASE_URL'])
+if "JAWSDB_URL" in os.environ:
+    url = urllib.parse.urlparse(os.environ["CLEARDB_DATABASE_URL"])
     # Update with environment configuration.
-    DATABASES['default'].update({
-        'NAME': url.path[1:],
-        'USER': url.username,
-        'PASSWORD': url.password,
-        'HOST': url.hostname,
-        'PORT': url.port,
-    })
+    DATABASES["default"].update(
+        {
+            "NAME": url.path[1:],
+            "USER": url.username,
+            "PASSWORD": url.password,
+            "HOST": url.hostname,
+            "PORT": url.port,
+        }
+    )
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
@@ -133,26 +138,25 @@ USE_TZ = True
 STATIC_URL = "/static/"
 
 # RabbitMQ Settings
-BROKER_URL = os.environ.get('BROKER_URL', 'amqp://127.0.0.1:5672')
-BROKER_CONNECTION_MAX_RETRIES = os.environ.get('BROKER_CONNECTION_MAX_RETRIES', None)
-BROKER_POOL_LIMIT = os.environ.get('BROKER_POOL_LIMIT', None)
+BROKER_URL = os.environ.get("CLOUDAMQP_URL", "amqp://127.0.0.1:5672")
+BROKER_CONNECTION_MAX_RETRIES = os.environ.get("BROKER_CONNECTION_MAX_RETRIES", None)
+BROKER_POOL_LIMIT = os.environ.get("BROKER_POOL_LIMIT", None)
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', BROKER_URL)
+CELERY_BROKER_URL = BROKER_URL
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-        "rest_framework.renderers.BrowsableAPIRenderer",
+        "djangorestframework_camel_case.render.CamelCaseJSONRenderer",
+        "djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer",
     ],
     "DEFAULT_PARSER_CLASSES": [
-        "rest_framework.parsers.JSONParser",
-        "rest_framework.parsers.FormParser",
-        "rest_framework.parsers.MultiPartParser",
+        "djangorestframework_camel_case.parser.CamelCaseFormParser",
+        "djangorestframework_camel_case.parser.CamelCaseMultiPartParser",
+        "djangorestframework_camel_case.parser.CamelCaseJSONParser",
     ],
 }
 
-import django_heroku
 django_heroku.settings(locals())
